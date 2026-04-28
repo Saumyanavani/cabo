@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Eye, Flame, RotateCcw, Share2, Trophy } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Flame, RotateCcw, Share2, Trophy } from "lucide-react";
 import { PlayingCard } from "@/components/PlayingCard";
 import { PlayerHand } from "@/components/PlayerHand";
 import { RoomSetup } from "@/components/RoomSetup";
@@ -29,6 +29,7 @@ export default function Home() {
   const [peekSelection, setPeekSelection] = useState<string[]>([]);
   const [lobbyMessage, setLobbyMessage] = useState<string | null>(null);
   const [roomMessage, setRoomMessage] = useState<string | null>(null);
+  const peekLockTimeoutRef = useRef<number | null>(null);
 
   const dispatch = useCallback((action: GameAction) => {
     setState((previous) => {
@@ -42,6 +43,26 @@ export default function Home() {
       return next;
     });
   }, []);
+
+  const clearPendingPeekLock = useCallback(() => {
+    if (peekLockTimeoutRef.current === null) return;
+    window.clearTimeout(peekLockTimeoutRef.current);
+    peekLockTimeoutRef.current = null;
+  }, []);
+
+  const scheduleInitialPeekLock = useCallback(
+    (cardIds: string[]) => {
+      clearPendingPeekLock();
+      peekLockTimeoutRef.current = window.setTimeout(() => {
+        dispatch({ type: "initial-peek", playerId: viewerId, cardIds });
+        setPeekSelection([]);
+        peekLockTimeoutRef.current = null;
+      }, 1700);
+    },
+    [clearPendingPeekLock, dispatch, viewerId],
+  );
+
+  useEffect(() => clearPendingPeekLock, [clearPendingPeekLock]);
 
   useEffect(() => {
     if (state.players.length === 0 || !hasSupabaseConfig()) return;
@@ -61,9 +82,25 @@ export default function Home() {
     return () => window.clearTimeout(timeout);
   }, [dispatch, state.highlighted]);
 
+  useEffect(() => {
+    const currentViewer = state.players.find((player) => player.id === viewerId);
+    if (state.phase === "initial-peek" && !currentViewer?.hasPeekedInitial) return;
+    clearPendingPeekLock();
+    setPeekSelection([]);
+  }, [clearPendingPeekLock, state.phase, state.players, viewerId]);
+
   const viewer = state.players.find((player) => player.id === viewerId);
   const active = currentPlayer(state);
   const winner = getWinnerSummary(state);
+  const initialPeekPending = state.phase === "initial-peek" ? state.players.filter((player) => !player.hasPeekedInitial) : [];
+  const initialPeekStatus =
+    state.phase === "initial-peek"
+      ? viewer?.hasPeekedInitial
+        ? initialPeekPending.length
+          ? `Waiting for ${initialPeekPending.map((player) => player.name).join(", ")}`
+          : "Starting game"
+        : "Pick two cards to peek"
+      : undefined;
 
   const revealMap = useMemo(() => {
     const map = new Map<string, string[]>();
@@ -145,6 +182,7 @@ export default function Home() {
 
     if (state.phase === "initial-peek") {
       if (player.id !== viewerId || viewer?.hasPeekedInitial) return;
+      if (peekLockTimeoutRef.current !== null) return;
       const nextSelection = peekSelection.includes(handCard.id)
         ? peekSelection.filter((id) => id !== handCard.id)
         : peekSelection.length >= 2
@@ -155,6 +193,7 @@ export default function Home() {
         type: "preview-highlight",
         refs: nextSelection.map((handCardId) => ({ playerId: viewerId, handCardId })),
       });
+      if (nextSelection.length === 2) scheduleInitialPeekLock(nextSelection);
       return;
     }
 
@@ -211,7 +250,7 @@ export default function Home() {
             .filter((player) => player.id !== viewerId)
             .map((player) => (
               <PlayerHand
-                active={active?.id === player.id}
+                active={state.phase === "initial-peek" ? !player.hasPeekedInitial : active?.id === player.id}
                 highlighted={state.highlighted}
                 key={player.id}
                 onCardClick={(card) => handleCardClick(player, card)}
@@ -263,13 +302,13 @@ export default function Home() {
               pendingPowerName={pendingPowerName}
               phase={state.phase}
               stackOpen={Boolean(state.stackWindow)}
+              titleOverride={initialPeekStatus}
             />
 
             <ActionBar
               activeId={active?.id}
               dispatch={dispatch}
               peekSelection={peekSelection}
-              setPeekSelection={setPeekSelection}
               state={state}
               viewerId={viewerId}
             />
@@ -278,7 +317,7 @@ export default function Home() {
 
         {viewer ? (
           <PlayerHand
-            active={active?.id === viewer.id}
+            active={state.phase === "initial-peek" ? !viewer.hasPeekedInitial : active?.id === viewer.id}
             highlighted={state.highlighted}
             onCardClick={(card) => handleCardClick(viewer, card)}
             player={viewer}
@@ -385,31 +424,28 @@ type ActionBarProps = {
   activeId?: string;
   dispatch: React.Dispatch<Parameters<typeof gameReducer>[1]>;
   peekSelection: string[];
-  setPeekSelection: (ids: string[]) => void;
   state: Parameters<typeof gameReducer>[0];
   viewerId: string;
 };
 
-function ActionBar({ activeId, dispatch, peekSelection, setPeekSelection, state, viewerId }: ActionBarProps) {
+function ActionBar({ activeId, dispatch, peekSelection, state, viewerId }: ActionBarProps) {
   const isActive = activeId === viewerId;
   const pending = state.pendingPower;
 
   if (state.phase === "initial-peek") {
     const viewer = state.players.find((player) => player.id === viewerId);
+    const pendingPlayers = state.players.filter((player) => !player.hasPeekedInitial);
+    const pendingNames = pendingPlayers.map((player) => player.name).join(", ");
+    const remaining = 2 - peekSelection.length;
     return (
       <div className="action-bar">
-        <button
-          className="primary-button"
-          disabled={viewer?.hasPeekedInitial || peekSelection.length !== 2}
-          onClick={() => {
-            dispatch({ type: "initial-peek", playerId: viewerId, cardIds: peekSelection });
-            setPeekSelection([]);
-          }}
-          type="button"
-        >
-          <Eye size={17} />
-          Lock peek
-        </button>
+        {viewer?.hasPeekedInitial ? (
+          <p>{pendingNames ? `Waiting for ${pendingNames}.` : "Starting the first turn."}</p>
+        ) : peekSelection.length === 2 ? (
+          <p>Cards flip back automatically.</p>
+        ) : (
+          <p>{remaining === 2 ? "Tap two cards." : "Tap one more card."}</p>
+        )}
       </div>
     );
   }
@@ -475,16 +511,18 @@ function StatusBlock({
   pendingPowerName,
   phase,
   stackOpen,
+  titleOverride,
 }: {
   activeName?: string;
   pendingPowerName: string | null;
   phase: string;
   stackOpen: boolean;
+  titleOverride?: string;
 }) {
   return (
     <div className="status-block">
       <span>{phaseLabel(phase)}</span>
-      <strong>{pendingPowerName ?? (activeName ? `${activeName}'s turn` : "Setting up")}</strong>
+      <strong>{titleOverride ?? pendingPowerName ?? (activeName ? `${activeName}'s turn` : "Setting up")}</strong>
       {stackOpen ? <p>Stack is open.</p> : null}
     </div>
   );
