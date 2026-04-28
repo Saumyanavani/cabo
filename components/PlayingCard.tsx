@@ -26,6 +26,8 @@ export function PlayingCard({
   onClick,
 }: PlayingCardProps) {
   const clickable = Boolean(onClick) && !disabled;
+  const glyph = card ? suitGlyph(card.suit) : "";
+  const isRoyal = card ? ["J", "Q", "K"].includes(card.rank) : false;
 
   return (
     <button
@@ -44,14 +46,41 @@ export function PlayingCard({
     >
       {faceUp && card ? (
         <>
-          <span className="playing-card__rank">{card.rank === "JOKER" ? "J" : card.rank}</span>
-          <span className="playing-card__suit">{suitGlyph(card.suit)}</span>
+          <span className="playing-card__corner playing-card__corner--top">
+            <b>{card.rank === "JOKER" ? "Jkr" : card.rank}</b>
+            <i>{glyph}</i>
+          </span>
+          <span className="playing-card__art" aria-hidden="true">
+            {card.rank === "JOKER" ? (
+              <>
+                <span className="playing-card__joker-star">✦</span>
+                <span className="playing-card__joker-word">Joker</span>
+              </>
+            ) : isRoyal ? (
+              <>
+                <span className="playing-card__royal">{card.rank}</span>
+                <span className="playing-card__royal-suit">{glyph}</span>
+              </>
+            ) : (
+              <>
+                <span>{glyph}</span>
+                <span>{glyph}</span>
+                <span>{glyph}</span>
+              </>
+            )}
+          </span>
+          <span className="playing-card__corner playing-card__corner--bottom">
+            <b>{card.rank === "JOKER" ? "Jkr" : card.rank}</b>
+            <i>{glyph}</i>
+          </span>
           <span className="playing-card__center">{rankLabel(card)}</span>
         </>
       ) : (
         <>
-          <span className="playing-card__back-mark">C</span>
           <span className="playing-card__back-line" />
+          <span className="playing-card__back-diamond" />
+          <span className="playing-card__back-mark">C</span>
+          <span className="playing-card__back-mini">CABO</span>
         </>
       )}
       {label ? <span className="playing-card__label">{label}</span> : null}

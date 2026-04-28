@@ -1,22 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Plus, Sparkles, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { LogIn, Sparkles } from "lucide-react";
 import type { GameOptions } from "@/lib/game/types";
 
 type RoomSetupProps = {
   message?: string | null;
-  onStart: (names: string[], options: GameOptions) => void;
-  onJoin: (code: string) => void;
+  onCreate: (nickname: string, options: GameOptions) => void;
+  onJoin: (code: string, nickname: string) => void;
   syncAvailable: boolean;
 };
 
-export function RoomSetup({ message, onJoin, onStart, syncAvailable }: RoomSetupProps) {
-  const [names, setNames] = useState(["You", "Maya"]);
-  const [includeJokers, setIncludeJokers] = useState(false);
+export function RoomSetup({ message, onCreate, onJoin, syncAvailable }: RoomSetupProps) {
+  const [mode, setMode] = useState<"create" | "join">("create");
+  const [nickname, setNickname] = useState("");
   const [joinCode, setJoinCode] = useState("");
-
-  const canStart = useMemo(() => names.filter((name) => name.trim()).length >= 2, [names]);
+  const [includeJokers, setIncludeJokers] = useState(false);
+  const trimmedName = nickname.trim();
 
   return (
     <main className="lobby-shell">
@@ -24,84 +24,87 @@ export function RoomSetup({ message, onJoin, onStart, syncAvailable }: RoomSetup
         <p className="eyebrow">Private Cabo room</p>
         <h1>CABO</h1>
         <p>
-          A fast, memory-first card game for two to four players. Create a room, share the code, and keep the table
-          sharp.
+          Create a room, share the code, and join by nickname. Two to four players can sit down before the host deals.
         </p>
       </section>
 
       <section className="setup-panel" aria-label="Room setup">
         <div className="setup-panel__header">
-          <Sparkles size={20} />
+          {mode === "create" ? <Sparkles size={20} /> : <LogIn size={20} />}
           <div>
-            <h2>New room</h2>
+            <h2>{mode === "create" ? "Create room" : "Join room"}</h2>
             <p>{syncAvailable ? "Realtime room sync is enabled." : "Add Supabase env vars to enable online joining."}</p>
           </div>
         </div>
 
-        <div className="player-fields">
-          {names.map((name, index) => (
-            <label className="input-row" key={index}>
-              <span>Player {index + 1}</span>
-              <input
-                maxLength={16}
-                onChange={(event) => {
-                  const next = [...names];
-                  next[index] = event.target.value;
-                  setNames(next);
-                }}
-                value={name}
-              />
-              {names.length > 2 ? (
-                <button
-                  aria-label={`Remove player ${index + 1}`}
-                  className="icon-button"
-                  onClick={() => setNames(names.filter((_, itemIndex) => itemIndex !== index))}
-                  type="button"
-                >
-                  <Trash2 size={17} />
-                </button>
-              ) : null}
-            </label>
-          ))}
-        </div>
-
-        <div className="setup-controls">
+        <div className="segmented-control" role="tablist" aria-label="Room mode">
           <button
-            className="ghost-button"
-            disabled={names.length >= 4}
-            onClick={() => setNames([...names, `Player ${names.length + 1}`])}
+            aria-selected={mode === "create"}
+            className={mode === "create" ? "segmented-control__item segmented-control__item--active" : "segmented-control__item"}
+            onClick={() => setMode("create")}
+            role="tab"
             type="button"
           >
-            <Plus size={17} />
-            Add player
+            Create
           </button>
-          <label className="toggle-row">
-            <input checked={includeJokers} onChange={(event) => setIncludeJokers(event.target.checked)} type="checkbox" />
-            <span>Jokers -1</span>
-          </label>
-        </div>
-
-        <button
-          className="primary-button"
-          disabled={!canStart}
-          onClick={() => onStart(names, { includeJokers, maxPlayers: 4 })}
-          type="button"
-        >
-          Create room
-        </button>
-
-        <div className="join-row">
-          <input
-            aria-label="Room code"
-            maxLength={4}
-            onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
-            placeholder="CODE"
-            value={joinCode}
-          />
-          <button className="ghost-button" disabled={joinCode.length < 4} onClick={() => onJoin(joinCode)} type="button">
+          <button
+            aria-selected={mode === "join"}
+            className={mode === "join" ? "segmented-control__item segmented-control__item--active" : "segmented-control__item"}
+            onClick={() => setMode("join")}
+            role="tab"
+            type="button"
+          >
             Join
           </button>
         </div>
+
+        <label className="input-row input-row--stacked">
+          <span>Nickname</span>
+          <input
+            maxLength={16}
+            onChange={(event) => setNickname(event.target.value)}
+            placeholder="Name"
+            value={nickname}
+          />
+        </label>
+
+        {mode === "join" ? (
+          <label className="input-row input-row--stacked">
+            <span>Room code</span>
+            <input
+              maxLength={4}
+              onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
+              placeholder="K7M2"
+              value={joinCode}
+            />
+          </label>
+        ) : (
+          <label className="toggle-row toggle-row--panel">
+            <input checked={includeJokers} onChange={(event) => setIncludeJokers(event.target.checked)} type="checkbox" />
+            <span>Include two Jokers worth -1 each</span>
+          </label>
+        )}
+
+        {mode === "create" ? (
+          <button
+            className="primary-button"
+            disabled={!trimmedName}
+            onClick={() => onCreate(nickname, { includeJokers, maxPlayers: 4 })}
+            type="button"
+          >
+            Create room
+          </button>
+        ) : (
+          <button
+            className="primary-button"
+            disabled={!trimmedName || joinCode.length < 4}
+            onClick={() => onJoin(joinCode, nickname)}
+            type="button"
+          >
+            Join room
+          </button>
+        )}
+
         {message ? <p className="setup-panel__message">{message}</p> : null}
       </section>
     </main>

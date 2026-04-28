@@ -32,7 +32,7 @@ export default function Home() {
   const dispatch = useCallback((action: GameAction) => {
     setState((previous) => {
       const next = gameReducer(previous, action);
-      if (next !== previous && next.phase !== "lobby") {
+      if (next !== previous && next.players.length > 0) {
         saveRoomState(next).catch((error) => {
           console.error(error);
         });
@@ -42,14 +42,14 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (state.phase === "lobby" || !hasSupabaseConfig()) return;
+    if (state.players.length === 0 || !hasSupabaseConfig()) return;
     const channel = subscribeToRoom(state.roomCode, (nextState) => {
       setState(nextState);
     });
     return () => {
       void unsubscribeFromRoom(channel);
     };
-  }, [state.phase, state.roomCode]);
+  }, [state.players.length, state.roomCode]);
 
   const viewer = state.players.find((player) => player.id === viewerId);
   const active = currentPlayer(state);
@@ -69,38 +69,51 @@ export default function Home() {
     return map;
   }, [peekSelection, state.pendingPower, state.phase, state.players, viewerId]);
 
-  if (state.phase === "lobby") {
+  if (state.phase === "lobby" && state.players.length === 0) {
     return (
       <RoomSetup
         message={lobbyMessage}
-        onJoin={async (code) => {
+        onCreate={(nickname, options) => {
+          const playerId = makeClientPlayerId();
+          const next = gameReducer(initialGameState, { type: "create-room", playerId, name: nickname, options });
+          setState(next);
+          setViewerId(playerId);
+          setPeekSelection([]);
+          saveRoomState(next).catch((error) => {
+            console.error(error);
+            setLobbyMessage("Room created locally. Check Supabase env vars for online joining.");
+          });
+        }}
+        onJoin={async (code, nickname) => {
           try {
             const room = await loadRoomState(code);
             if (!room) {
               setLobbyMessage(hasSupabaseConfig() ? "Room not found." : "Supabase env vars are needed for online joining.");
               return;
             }
-            setState(room);
-            setViewerId(room.players[1]?.id ?? room.players[0]?.id ?? "p1");
+            const playerId = makeClientPlayerId();
+            const joined = gameReducer(room, { type: "join-room", playerId, name: nickname });
+            const didJoin = joined.players.some((player) => player.id === playerId);
+            if (!didJoin) {
+              setLobbyMessage(joined.toast ?? "Could not join that room.");
+              return;
+            }
+            setState(joined);
+            setViewerId(playerId);
+            await saveRoomState(joined);
             setLobbyMessage(null);
           } catch (error) {
             console.error(error);
             setLobbyMessage("Could not join that room.");
           }
         }}
-        onStart={(names, options) => {
-          const next = gameReducer(initialGameState, { type: "start-game", playerNames: names, options });
-          setState(next);
-          saveRoomState(next).catch((error) => {
-            console.error(error);
-            setLobbyMessage("Room created locally. Add Supabase env vars for online joining.");
-          });
-          setViewerId("p1");
-          setPeekSelection([]);
-        }}
         syncAvailable={hasSupabaseConfig()}
       />
     );
+  }
+
+  if (state.phase === "lobby") {
+    return <WaitingRoom dispatch={dispatch} state={state} viewerId={viewerId} />;
   }
 
   function handleCardClick(player: Player, handCard: HandCard) {
@@ -147,13 +160,7 @@ export default function Home() {
           <h1>CABO</h1>
         </div>
         <div className="top-bar__actions">
-          <select aria-label="View as player" onChange={(event) => setViewerId(event.target.value)} value={viewerId}>
-            {state.players.map((player) => (
-              <option key={player.id} value={player.id}>
-                View as {player.name}
-              </option>
-            ))}
-          </select>
+          <span className="identity-pill">{viewer?.name ?? "Spectator"}</span>
           <button
             className="icon-button icon-button--wide"
             onClick={() => navigator.clipboard?.writeText(state.roomCode)}
@@ -248,6 +255,69 @@ export default function Home() {
       </footer>
 
       {winner ? <GameOverModal players={state.players} winnerId={winner.winnerId} onRestart={() => location.reload()} /> : null}
+    </main>
+  );
+}
+
+function WaitingRoom({
+  dispatch,
+  state,
+  viewerId,
+}: {
+  dispatch: React.Dispatch<GameAction>;
+  state: GameState;
+  viewerId: string;
+}) {
+  const viewer = state.players.find((player) => player.id === viewerId);
+  const isHost = state.hostId === viewerId;
+
+  return (
+    <main className="waiting-shell">
+      <section className="waiting-panel">
+        <div className="waiting-panel__header">
+          <div>
+            <p className="eyebrow">Room {state.roomCode}</p>
+            <h1>CABO</h1>
+          </div>
+          <button className="icon-button icon-button--wide" onClick={() => navigator.clipboard?.writeText(state.roomCode)} type="button">
+            <Share2 size={17} />
+            Code
+          </button>
+        </div>
+
+        <div className="seat-list">
+          {state.players.map((player, index) => (
+            <div className="seat-row" key={player.id}>
+              <span>Seat {index + 1}</span>
+              <strong>{player.name}</strong>
+              {player.id === state.hostId ? <em>Host</em> : null}
+              {player.id === viewerId ? <em>You</em> : null}
+            </div>
+          ))}
+          {Array.from({ length: state.options.maxPlayers - state.players.length }).map((_, index) => (
+            <div className="seat-row seat-row--empty" key={index}>
+              <span>Open</span>
+              <strong>Waiting</strong>
+            </div>
+          ))}
+        </div>
+
+        <div className="waiting-panel__footer">
+          <p>
+            {viewer
+              ? "Share the room code. Players join by nickname, then the host starts the deal."
+              : "You are viewing this room without a seat."}
+          </p>
+          <button
+            className="primary-button"
+            disabled={!isHost || state.players.length < 2}
+            onClick={() => dispatch({ type: "start-room-game", playerId: viewerId })}
+            type="button"
+          >
+            Start game
+          </button>
+        </div>
+      </section>
     </main>
   );
 }
@@ -415,4 +485,8 @@ function powerInstruction(kind: string): string {
     "blind-swap": "Tap two cards to swap without seeing them.",
     "seen-swap": "Tap two cards, review them, then choose swap or cancel.",
   }[kind] ?? "Resolve the power.";
+}
+
+function makeClientPlayerId(): string {
+  return `p-${crypto.randomUUID()}`;
 }

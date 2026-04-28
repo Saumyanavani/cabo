@@ -23,6 +23,7 @@ export const initialGameState: GameState = {
   roomCode: makeRoomCode(),
   phase: "lobby",
   options: defaultOptions,
+  hostId: null,
   players: [],
   deck: [],
   discardPile: [],
@@ -40,6 +41,12 @@ export const initialGameState: GameState = {
 
 export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
+    case "create-room":
+      return createRoom(action.playerId, action.name, action.options);
+    case "join-room":
+      return joinRoom(state, action.playerId, action.name);
+    case "start-room-game":
+      return startRoomGame(state, action.playerId);
     case "start-game":
       return startGame(action.playerNames, action.options);
     case "initial-peek":
@@ -123,6 +130,63 @@ function startGame(playerNames: string[], options: GameOptions): GameState {
     deck,
     phase: "initial-peek",
     log: [`Room created for ${names.length} players.`],
+  };
+}
+
+function createRoom(playerId: string, name: string, options: GameOptions): GameState {
+  const hostName = normalizeName(name, "You");
+  return {
+    ...initialGameState,
+    roomCode: makeRoomCode(),
+    options,
+    hostId: playerId,
+    players: [emptyPlayer(playerId, hostName)],
+    toast: `Room created for ${hostName}.`,
+    log: [`${hostName} created the room.`],
+  };
+}
+
+function joinRoom(state: GameState, playerId: string, name: string): GameState {
+  if (state.phase !== "lobby") return withToast(state, "This game has already started.");
+  if (state.players.some((player) => player.id === playerId)) return state;
+  if (state.players.length >= state.options.maxPlayers) return withToast(state, "This room is full.");
+
+  const playerName = normalizeName(name, `Player ${state.players.length + 1}`);
+  return {
+    ...state,
+    players: [...state.players, emptyPlayer(playerId, playerName)],
+    toast: `${playerName} joined the room.`,
+    log: [`${playerName} joined the room.`, ...state.log],
+  };
+}
+
+function startRoomGame(state: GameState, playerId: string): GameState {
+  if (state.phase !== "lobby") return withToast(state, "This game has already started.");
+  if (state.hostId && state.hostId !== playerId) return withToast(state, "Only the host can start the game.");
+  if (state.players.length < 2) return withToast(state, "You need at least two players.");
+
+  const deck = createDeck(state.options.includeJokers);
+  return {
+    ...state,
+    deck,
+    players: state.players.map((player) => ({
+      ...player,
+      hand: deck.splice(0, 4).map(toHandCard),
+      hasPeekedInitial: false,
+      penaltyCount: 0,
+    })),
+    discardPile: [],
+    currentPlayerIndex: 0,
+    drawnCard: null,
+    stackWindow: null,
+    pendingPower: null,
+    pendingGift: null,
+    cabo: null,
+    winnerId: null,
+    highlighted: [],
+    phase: "initial-peek",
+    toast: "Game started. Pick two cards to peek.",
+    log: ["Game started.", ...state.log],
   };
 }
 
@@ -467,6 +531,20 @@ function newPendingPower(actorId: string, kind: PowerKind, sourceCard: Card): Pe
 
 function toHandCard(card: Card): HandCard {
   return { id: `hand-${card.id}`, card };
+}
+
+function emptyPlayer(id: string, name: string): Player {
+  return {
+    id,
+    name,
+    hand: [],
+    hasPeekedInitial: false,
+    penaltyCount: 0,
+  };
+}
+
+function normalizeName(name: string, fallback: string): string {
+  return name.trim().slice(0, 16) || fallback;
 }
 
 function ranksMatch(a: Rank, b: Rank): boolean {

@@ -83,6 +83,7 @@ export type GameState = {
   roomCode: string;
   phase: GamePhase;
   options: GameOptions;
+  hostId: string | null;
   players: Player[];
   deck: Card[];
   discardPile: Card[];
@@ -99,6 +100,9 @@ export type GameState = {
 };
 
 export type GameAction =
+  | { type: "create-room"; playerId: string; name: string; options: GameOptions }
+  | { type: "join-room"; playerId: string; name: string }
+  | { type: "start-room-game"; playerId: string }
   | { type: "start-game"; playerNames: string[]; options: GameOptions }
   | { type: "initial-peek"; playerId: string; cardIds: string[] }
   | { type: "draw"; playerId: string }
