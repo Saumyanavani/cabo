@@ -104,6 +104,8 @@ export type GameAction =
   | { type: "join-room"; playerId: string; name: string }
   | { type: "start-room-game"; playerId: string }
   | { type: "start-game"; playerNames: string[]; options: GameOptions }
+  | { type: "preview-highlight"; refs: CardRef[] }
+  | { type: "clear-highlights" }
   | { type: "initial-peek"; playerId: string; cardIds: string[] }
   | { type: "draw"; playerId: string }
   | { type: "play-drawn"; playerId: string }

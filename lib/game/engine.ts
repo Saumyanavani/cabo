@@ -49,6 +49,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return startRoomGame(state, action.playerId);
     case "start-game":
       return startGame(action.playerNames, action.options);
+    case "preview-highlight":
+      return { ...state, highlighted: uniqueRefs(action.refs) };
+    case "clear-highlights":
+      return state.highlighted.length ? { ...state, highlighted: [] } : state;
     case "initial-peek":
       return initialPeek(state, action.playerId, action.cardIds);
     case "draw":
@@ -206,7 +210,7 @@ function initialPeek(state: GameState, playerId: string, cardIds: string[]): Gam
     ...state,
     players,
     phase: allReady ? "turn" : "initial-peek",
-    highlighted: cardIds.map((handCardId) => ({ playerId, handCardId })),
+    highlighted: [],
     toast: allReady ? "All peeks are done. First turn is live." : `${player.name} peeked at two cards.`,
     log: [`${player.name} peeked at two cards.`, ...state.log],
   };

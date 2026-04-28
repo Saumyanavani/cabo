@@ -53,6 +53,14 @@ export default function Home() {
     };
   }, [state.players.length, state.roomCode]);
 
+  useEffect(() => {
+    if (!state.highlighted.length) return;
+    const timeout = window.setTimeout(() => {
+      dispatch({ type: "clear-highlights" });
+    }, 1400);
+    return () => window.clearTimeout(timeout);
+  }, [dispatch, state.highlighted]);
+
   const viewer = state.players.find((player) => player.id === viewerId);
   const active = currentPlayer(state);
   const winner = getWinnerSummary(state);
@@ -137,10 +145,15 @@ export default function Home() {
 
     if (state.phase === "initial-peek") {
       if (player.id !== viewerId || viewer?.hasPeekedInitial) return;
-      setPeekSelection((current) => {
-        if (current.includes(handCard.id)) return current.filter((id) => id !== handCard.id);
-        if (current.length >= 2) return current;
-        return [...current, handCard.id];
+      const nextSelection = peekSelection.includes(handCard.id)
+        ? peekSelection.filter((id) => id !== handCard.id)
+        : peekSelection.length >= 2
+          ? peekSelection
+          : [...peekSelection, handCard.id];
+      setPeekSelection(nextSelection);
+      dispatch({
+        type: "preview-highlight",
+        refs: nextSelection.map((handCardId) => ({ playerId: viewerId, handCardId })),
       });
       return;
     }
@@ -167,6 +180,7 @@ export default function Home() {
 
   const pendingPowerName = state.pendingPower ? powerCopy(state.pendingPower.kind) : null;
   const drawnVisible = state.drawnCard && active?.id === viewerId;
+  const canDrawFromDeck = state.phase === "turn" && active?.id === viewerId && state.deck.length > 0;
 
   return (
     <main className="game-shell">
@@ -214,18 +228,32 @@ export default function Home() {
           <div className="felt-panel">
             <div className="deck-row">
               <div>
-                <PlayingCard label={`${state.deck.length} left`} size="md" />
-                <span>Deck</span>
+                <PlayingCard
+                  ariaLabel={canDrawFromDeck ? "Draw from deck" : "Deck"}
+                  onClick={canDrawFromDeck ? () => dispatch({ type: "draw", playerId: viewerId }) : undefined}
+                  size="md"
+                />
+                <span>{state.deck.length} left</span>
               </div>
               <div>
-                <PlayingCard card={state.discardPile[0]} faceUp={Boolean(state.discardPile[0])} label="Top" size="md" />
+                <PlayingCard
+                  ariaLabel={state.discardPile[0] ? `Discard pile ${rankLabel(state.discardPile[0])}` : "Discard pile"}
+                  card={state.discardPile[0]}
+                  faceUp={Boolean(state.discardPile[0])}
+                  size="md"
+                />
                 <span>Discard</span>
               </div>
             </div>
 
             {state.drawnCard ? (
               <div className="drawn-card-panel">
-                <PlayingCard card={state.drawnCard} faceUp={Boolean(drawnVisible)} label="Drawn" size="lg" />
+                <PlayingCard
+                  ariaLabel="Drawn card"
+                  card={state.drawnCard}
+                  faceUp={Boolean(drawnVisible)}
+                  size="lg"
+                />
                 {drawnVisible ? <strong>{rankLabel(state.drawnCard)}</strong> : <strong>Card drawn</strong>}
               </div>
             ) : null}
@@ -389,9 +417,7 @@ function ActionBar({ activeId, dispatch, peekSelection, setPeekSelection, state,
   if (state.phase === "turn") {
     return (
       <div className="action-bar">
-        <button className="primary-button" disabled={!isActive} onClick={() => dispatch({ type: "draw", playerId: viewerId })} type="button">
-          Draw card
-        </button>
+        <p>{isActive ? "Tap the deck to draw." : "Waiting for the active player."}</p>
       </div>
     );
   }
@@ -459,7 +485,7 @@ function StatusBlock({
     <div className="status-block">
       <span>{phaseLabel(phase)}</span>
       <strong>{pendingPowerName ?? (activeName ? `${activeName}'s turn` : "Setting up")}</strong>
-      {stackOpen ? <p>Stack is open until the next draw or a correct stack.</p> : <p>Watch the highlighted slots during powers.</p>}
+      {stackOpen ? <p>Stack is open.</p> : null}
     </div>
   );
 }

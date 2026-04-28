@@ -60,6 +60,28 @@ describe("stacking", () => {
   });
 });
 
+describe("public highlights", () => {
+  it("previews and clears touched card slots without changing cards", () => {
+    const state = fixtureState({
+      players: [
+        player("p1", "You", [card("2", "clubs")]),
+        player("p2", "Maya", [card("K", "spades")]),
+      ],
+    });
+
+    const highlighted = gameReducer(state, {
+      type: "preview-highlight",
+      refs: [{ playerId: "p1", handCardId: "2-clubs" }],
+    });
+
+    expect(highlighted.highlighted).toEqual([{ playerId: "p1", handCardId: "2-clubs" }]);
+    expect(highlighted.players[0].hand[0].card.rank).toBe("2");
+
+    const cleared = gameReducer(highlighted, { type: "clear-highlights" });
+    expect(cleared.highlighted).toEqual([]);
+  });
+});
+
 describe("Cabo", () => {
   it("makes the declarer lose immediately when their total is above five", () => {
     const state = fixtureState({

@@ -5,6 +5,7 @@ import { isRed, rankLabel, suitGlyph } from "@/lib/game/cards";
 import type { Card } from "@/lib/game/types";
 
 type PlayingCardProps = {
+  ariaLabel?: string;
   card?: Card;
   faceUp?: boolean;
   highlighted?: boolean;
@@ -16,6 +17,7 @@ type PlayingCardProps = {
 };
 
 export function PlayingCard({
+  ariaLabel,
   card,
   faceUp = false,
   highlighted = false,
@@ -43,6 +45,7 @@ export function PlayingCard({
       disabled={disabled}
       onClick={onClick}
       type="button"
+      aria-label={ariaLabel}
     >
       {faceUp && card ? (
         <>
@@ -73,17 +76,15 @@ export function PlayingCard({
             <b>{card.rank === "JOKER" ? "Jkr" : card.rank}</b>
             <i>{glyph}</i>
           </span>
-          <span className="playing-card__center">{rankLabel(card)}</span>
+          <span className="playing-card__sr-label">{rankLabel(card)}</span>
         </>
       ) : (
         <>
           <span className="playing-card__back-line" />
           <span className="playing-card__back-diamond" />
-          <span className="playing-card__back-mark">C</span>
-          <span className="playing-card__back-mini">CABO</span>
         </>
       )}
-      {label ? <span className="playing-card__label">{label}</span> : null}
+      {label ? <span className="playing-card__sr-label">{label}</span> : null}
     </button>
   );
 }

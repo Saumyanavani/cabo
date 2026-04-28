@@ -47,19 +47,19 @@ export function PlayerHand({
 
           return (
             <PlayingCard
+              ariaLabel={`${player.name} slot ${index + 1}`}
               card={handCard.card}
               faceUp={faceUp}
               highlighted={isHighlighted}
               key={handCard.id}
-              label={`Slot ${index + 1}`}
               onClick={onCardClick ? () => onCardClick(handCard) : undefined}
               selected={isSelected}
-              size={isViewer ? "lg" : "md"}
+              size="lg"
             />
           );
         })}
       </div>
-      {stackWindowOpen ? <p className="player-hand__hint">Tap any matching slot to stack.</p> : null}
+      {stackWindowOpen ? <p className="player-hand__hint">Stack open.</p> : null}
     </section>
   );
 }
