@@ -1,8 +1,8 @@
 import { createClient, type RealtimeChannel, type SupabaseClient } from "@supabase/supabase-js";
 import type { GameState } from "@/lib/game/types";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseUrl = normalizeSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
 
 let client: SupabaseClient | null = null;
 
@@ -18,10 +18,10 @@ export function getSupabaseClient(): SupabaseClient | null {
 
 export async function saveRoomState(state: GameState): Promise<void> {
   const supabase = getSupabaseClient();
-  if (!supabase) return;
+  if (!supabase) throw new Error("Supabase environment variables are missing.");
 
   const { error } = await supabase.from("rooms").upsert({
-    code: state.roomCode,
+    code: normalizeRoomCode(state.roomCode),
     state,
     updated_at: new Date().toISOString(),
   });
@@ -31,9 +31,10 @@ export async function saveRoomState(state: GameState): Promise<void> {
 
 export async function loadRoomState(code: string): Promise<GameState | null> {
   const supabase = getSupabaseClient();
-  if (!supabase) return null;
+  if (!supabase) throw new Error("Supabase environment variables are missing.");
 
-  const { data, error } = await supabase.from("rooms").select("state").eq("code", code.toUpperCase()).maybeSingle();
+  const normalizedCode = normalizeRoomCode(code);
+  const { data, error } = await supabase.from("rooms").select("state").eq("code", normalizedCode).maybeSingle();
   if (error) throw error;
   return (data?.state as GameState | undefined) ?? null;
 }
@@ -41,12 +42,13 @@ export async function loadRoomState(code: string): Promise<GameState | null> {
 export function subscribeToRoom(code: string, onState: (state: GameState) => void): RealtimeChannel | null {
   const supabase = getSupabaseClient();
   if (!supabase) return null;
+  const normalizedCode = normalizeRoomCode(code);
 
   const channel = supabase
-    .channel(`room:${code}`)
+    .channel(`room:${normalizedCode}`)
     .on(
       "postgres_changes",
-      { event: "*", schema: "public", table: "rooms", filter: `code=eq.${code}` },
+      { event: "*", schema: "public", table: "rooms", filter: `code=eq.${normalizedCode}` },
       (payload) => {
         const nextState = (payload.new as { state?: GameState } | null)?.state;
         if (nextState) onState(nextState);
@@ -60,4 +62,12 @@ export function subscribeToRoom(code: string, onState: (state: GameState) => voi
 export async function unsubscribeFromRoom(channel: RealtimeChannel | null): Promise<void> {
   const supabase = getSupabaseClient();
   if (supabase && channel) await supabase.removeChannel(channel);
+}
+
+function normalizeRoomCode(code: string): string {
+  return code.trim().toUpperCase();
+}
+
+function normalizeSupabaseUrl(url: string | undefined): string | undefined {
+  return url?.trim().replace(/\/rest\/v1\/?$/, "").replace(/\/$/, "");
 }

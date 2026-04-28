@@ -114,6 +114,42 @@ button {
   margin: 0;
 }
 
+.room-code-card {
+  background:
+    radial-gradient(circle at 50% 30%, rgb(240 138 93 / 22%), transparent 48%),
+    #151219;
+  border: 1px solid rgb(240 138 93 / 42%);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  gap: 0.2rem;
+  justify-items: center;
+  min-height: 132px;
+  padding: 1rem;
+}
+
+.room-code-card span,
+.room-code-card em {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-style: normal;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.room-code-card strong {
+  color: var(--ember-2);
+  font-size: clamp(2.8rem, 13vw, 5rem);
+  line-height: 0.95;
+}
+
+.room-message {
+  color: var(--ember-2) !important;
+  font-weight: 800;
+  text-align: center;
+}
+
 .seat-list {
   display: grid;
   gap: 0.65rem;
@@ -345,6 +381,19 @@ button:disabled {
   display: inline-flex;
   font-size: 0.9rem;
   font-weight: 800;
+  min-height: 44px;
+  padding: 0 0.9rem;
+}
+
+.code-pill {
+  align-items: center;
+  background: #151219;
+  border: 1px solid rgb(240 138 93 / 42%);
+  border-radius: 8px;
+  color: var(--ember-2);
+  display: inline-flex;
+  font-size: 1.1rem;
+  font-weight: 950;
   min-height: 44px;
   padding: 0 0.9rem;
 }

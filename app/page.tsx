@@ -28,6 +28,7 @@ export default function Home() {
   const [viewerId, setViewerId] = useState("p1");
   const [peekSelection, setPeekSelection] = useState<string[]>([]);
   const [lobbyMessage, setLobbyMessage] = useState<string | null>(null);
+  const [roomMessage, setRoomMessage] = useState<string | null>(null);
 
   const dispatch = useCallback((action: GameAction) => {
     setState((previous) => {
@@ -35,6 +36,7 @@ export default function Home() {
       if (next !== previous && next.players.length > 0) {
         saveRoomState(next).catch((error) => {
           console.error(error);
+          setRoomMessage(`Could not sync room: ${formatError(error)}`);
         });
       }
       return next;
@@ -73,22 +75,28 @@ export default function Home() {
     return (
       <RoomSetup
         message={lobbyMessage}
-        onCreate={(nickname, options) => {
+        onCreate={async (nickname, options) => {
           const playerId = makeClientPlayerId();
           const next = gameReducer(initialGameState, { type: "create-room", playerId, name: nickname, options });
           setState(next);
           setViewerId(playerId);
           setPeekSelection([]);
-          saveRoomState(next).catch((error) => {
+          setRoomMessage(hasSupabaseConfig() ? "Saving room online..." : "Room created locally. Supabase env vars are needed for online joining.");
+          try {
+            await saveRoomState(next);
+            const savedRoom = await loadRoomState(next.roomCode);
+            if (!savedRoom) throw new Error("room was not readable after saving; check the rooms table RLS policies");
+            setRoomMessage(hasSupabaseConfig() ? "Room is online. Share the code to invite someone." : null);
+          } catch (error) {
             console.error(error);
-            setLobbyMessage("Room created locally. Check Supabase env vars for online joining.");
-          });
+            setRoomMessage(`Room created locally, but online sync failed: ${formatError(error)}`);
+          }
         }}
         onJoin={async (code, nickname) => {
           try {
             const room = await loadRoomState(code);
             if (!room) {
-              setLobbyMessage(hasSupabaseConfig() ? "Room not found." : "Supabase env vars are needed for online joining.");
+              setLobbyMessage(hasSupabaseConfig() ? `Room ${code.trim().toUpperCase()} was not found. Make sure the host sees "Room is online."` : "Supabase env vars are needed for online joining.");
               return;
             }
             const playerId = makeClientPlayerId();
@@ -104,7 +112,7 @@ export default function Home() {
             setLobbyMessage(null);
           } catch (error) {
             console.error(error);
-            setLobbyMessage("Could not join that room.");
+            setLobbyMessage(`Could not join: ${formatError(error)}`);
           }
         }}
         syncAvailable={hasSupabaseConfig()}
@@ -113,7 +121,15 @@ export default function Home() {
   }
 
   if (state.phase === "lobby") {
-    return <WaitingRoom dispatch={dispatch} state={state} viewerId={viewerId} />;
+    return (
+      <WaitingRoom
+        dispatch={dispatch}
+        message={roomMessage ?? state.toast}
+        onCopyCode={async () => setRoomMessage(await copyText(state.roomCode, "Room code copied."))}
+        state={state}
+        viewerId={viewerId}
+      />
+    );
   }
 
   function handleCardClick(player: Player, handCard: HandCard) {
@@ -161,9 +177,12 @@ export default function Home() {
         </div>
         <div className="top-bar__actions">
           <span className="identity-pill">{viewer?.name ?? "Spectator"}</span>
+          <span className="code-pill" aria-label={`Room code ${state.roomCode}`}>
+            {state.roomCode}
+          </span>
           <button
             className="icon-button icon-button--wide"
-            onClick={() => navigator.clipboard?.writeText(state.roomCode)}
+            onClick={async () => setRoomMessage(await copyText(state.roomCode, "Room code copied."))}
             type="button"
           >
             <Share2 size={17} />
@@ -250,6 +269,7 @@ export default function Home() {
         </button>
         <div className="footer-panel__text">
           {state.toast ? <p>{state.toast}</p> : <p>Tap a card during the stack window to attempt a stack.</p>}
+          {roomMessage ? <span>{roomMessage}</span> : null}
           {state.cabo ? <span>Cabo called by {state.players.find((p) => p.id === state.cabo?.declaredBy)?.name}</span> : null}
         </div>
       </footer>
@@ -261,10 +281,14 @@ export default function Home() {
 
 function WaitingRoom({
   dispatch,
+  message,
+  onCopyCode,
   state,
   viewerId,
 }: {
   dispatch: React.Dispatch<GameAction>;
+  message?: string | null;
+  onCopyCode: () => void;
   state: GameState;
   viewerId: string;
 }) {
@@ -279,11 +303,17 @@ function WaitingRoom({
             <p className="eyebrow">Room {state.roomCode}</p>
             <h1>CABO</h1>
           </div>
-          <button className="icon-button icon-button--wide" onClick={() => navigator.clipboard?.writeText(state.roomCode)} type="button">
+          <button className="icon-button icon-button--wide" onClick={onCopyCode} type="button">
             <Share2 size={17} />
             Code
           </button>
         </div>
+
+        <button className="room-code-card" onClick={onCopyCode} type="button">
+          <span>Room code</span>
+          <strong>{state.roomCode}</strong>
+          <em>Tap to copy</em>
+        </button>
 
         <div className="seat-list">
           {state.players.map((player, index) => (
@@ -317,6 +347,7 @@ function WaitingRoom({
             Start game
           </button>
         </div>
+        {message ? <p className="room-message">{message}</p> : null}
       </section>
     </main>
   );
@@ -489,4 +520,32 @@ function powerInstruction(kind: string): string {
 
 function makeClientPlayerId(): string {
   return `p-${crypto.randomUUID()}`;
+}
+
+async function copyText(text: string, successMessage: string): Promise<string> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return successMessage;
+    }
+
+    const input = document.createElement("input");
+    input.value = text;
+    input.readOnly = true;
+    input.style.position = "fixed";
+    input.style.opacity = "0";
+    document.body.appendChild(input);
+    input.select();
+    const copied = document.execCommand("copy");
+    document.body.removeChild(input);
+    return copied ? successMessage : `Copy failed. Code: ${text}`;
+  } catch {
+    return `Copy failed. Code: ${text}`;
+  }
+}
+
+function formatError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && error && "message" in error) return String(error.message);
+  return "check Supabase settings";
 }
