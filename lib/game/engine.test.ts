@@ -82,6 +82,43 @@ describe("public highlights", () => {
   });
 });
 
+describe("leaving rooms", () => {
+  it("ends the current deal when a player leaves mid-game", () => {
+    const state = fixtureState({
+      deck: [card("A", "hearts")],
+      players: [
+        player("p1", "You", [card("2", "clubs")]),
+        player("p2", "Riri", [card("K", "spades")]),
+      ],
+    });
+
+    const next = gameReducer(state, { type: "leave-room", playerId: "p1" });
+
+    expect(next.phase).toBe("lobby");
+    expect(next.players.map((remainingPlayer) => remainingPlayer.id)).toEqual(["p2"]);
+    expect(next.players[0].hand).toEqual([]);
+    expect(next.deck).toEqual([]);
+    expect(next.toast).toBe("You left. The deal ended.");
+  });
+
+  it("closes the room when the last player leaves", () => {
+    const state: GameState = {
+      ...initialGameState,
+      roomCode: "ABCD",
+      hostId: "p1",
+      players: [player("p1", "You", [])],
+    };
+
+    const next = gameReducer(state, { type: "leave-room", playerId: "p1" });
+
+    expect(next.phase).toBe("lobby");
+    expect(next.roomCode).toBe("ABCD");
+    expect(next.hostId).toBeNull();
+    expect(next.players).toEqual([]);
+    expect(next.toast).toBe("Everyone left. Room closed.");
+  });
+});
+
 describe("Cabo", () => {
   it("makes the declarer lose immediately when their total is above five", () => {
     const state = fixtureState({

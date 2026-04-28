@@ -66,9 +66,8 @@ export function PlayingCard({
               </>
             ) : (
               <>
-                <span>{glyph}</span>
-                <span>{glyph}</span>
-                <span>{glyph}</span>
+                <span className="playing-card__pip-rank">{card.rank}</span>
+                <span className="playing-card__pip-suit">{glyph}</span>
               </>
             )}
           </span>

@@ -45,6 +45,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return createRoom(action.playerId, action.name, action.options);
     case "join-room":
       return joinRoom(state, action.playerId, action.name);
+    case "leave-room":
+      return leaveRoom(state, action.playerId);
     case "start-room-game":
       return startRoomGame(state, action.playerId);
     case "start-game":
@@ -161,6 +163,54 @@ function joinRoom(state: GameState, playerId: string, name: string): GameState {
     players: [...state.players, emptyPlayer(playerId, playerName)],
     toast: `${playerName} joined the room.`,
     log: [`${playerName} joined the room.`, ...state.log],
+  };
+}
+
+function leaveRoom(state: GameState, playerId: string): GameState {
+  const leavingPlayer = findPlayer(state, playerId);
+  if (!leavingPlayer) return state;
+
+  const players = state.players.filter((player) => player.id !== playerId);
+  const hostId = players.length ? (state.hostId === playerId ? players[0].id : state.hostId) : null;
+  const log = [`${leavingPlayer.name} left the room.`, ...state.log];
+
+  if (players.length === 0) {
+    return {
+      ...initialGameState,
+      roomCode: state.roomCode,
+      options: state.options,
+      toast: "Everyone left. Room closed.",
+      log,
+    };
+  }
+
+  if (state.phase === "lobby") {
+    return {
+      ...state,
+      hostId,
+      players,
+      toast: `${leavingPlayer.name} left the room.`,
+      log,
+    };
+  }
+
+  return {
+    ...state,
+    hostId,
+    players: players.map((player) => emptyPlayer(player.id, player.name)),
+    deck: [],
+    discardPile: [],
+    currentPlayerIndex: 0,
+    drawnCard: null,
+    stackWindow: null,
+    pendingPower: null,
+    pendingGift: null,
+    cabo: null,
+    winnerId: null,
+    highlighted: [],
+    phase: "lobby",
+    toast: `${leavingPlayer.name} left. The deal ended.`,
+    log: [`The deal ended because ${leavingPlayer.name} left.`, ...log],
   };
 }
 

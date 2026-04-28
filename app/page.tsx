@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Flame, RotateCcw, Share2, Trophy } from "lucide-react";
+import { Flame, LogOut, RotateCcw, Share2, Trophy } from "lucide-react";
 import { PlayingCard } from "@/components/PlayingCard";
 import { PlayerHand } from "@/components/PlayerHand";
 import { RoomSetup } from "@/components/RoomSetup";
@@ -12,6 +12,7 @@ import {
   gameReducer,
   getWinnerSummary,
   initialGameState,
+  makeRoomCode,
   playerTotal,
 } from "@/lib/game/engine";
 import {
@@ -34,7 +35,7 @@ export default function Home() {
   const dispatch = useCallback((action: GameAction) => {
     setState((previous) => {
       const next = gameReducer(previous, action);
-      if (next !== previous && next.players.length > 0) {
+      if (next !== previous && (next.players.length > 0 || previous.players.length > 0)) {
         saveRoomState(next).catch((error) => {
           console.error(error);
           setRoomMessage(`Could not sync room: ${formatError(error)}`);
@@ -43,6 +44,26 @@ export default function Home() {
       return next;
     });
   }, []);
+
+  const resetToRoomSetup = useCallback(() => {
+    setState({ ...initialGameState, roomCode: makeRoomCode() });
+    setViewerId("p1");
+    setPeekSelection([]);
+    setRoomMessage(null);
+  }, []);
+
+  const leaveCurrentRoom = useCallback(async () => {
+    const next = gameReducer(state, { type: "leave-room", playerId: viewerId });
+    try {
+      if (hasSupabaseConfig()) await saveRoomState(next);
+      setLobbyMessage(null);
+    } catch (error) {
+      console.error(error);
+      setLobbyMessage(`Left locally, but could not sync leave: ${formatError(error)}`);
+    } finally {
+      resetToRoomSetup();
+    }
+  }, [resetToRoomSetup, state, viewerId]);
 
   const clearPendingPeekLock = useCallback(() => {
     if (peekLockTimeoutRef.current === null) return;
@@ -171,6 +192,7 @@ export default function Home() {
         dispatch={dispatch}
         message={roomMessage ?? state.toast}
         onCopyCode={async () => setRoomMessage(await copyText(state.roomCode, "Room code copied."))}
+        onLeave={leaveCurrentRoom}
         state={state}
         viewerId={viewerId}
       />
@@ -240,6 +262,10 @@ export default function Home() {
           >
             <Share2 size={17} />
             Code
+          </button>
+          <button className="icon-button icon-button--wide" onClick={leaveCurrentRoom} type="button">
+            <LogOut size={17} />
+            Leave
           </button>
         </div>
       </header>
@@ -350,12 +376,14 @@ function WaitingRoom({
   dispatch,
   message,
   onCopyCode,
+  onLeave,
   state,
   viewerId,
 }: {
   dispatch: React.Dispatch<GameAction>;
   message?: string | null;
   onCopyCode: () => void;
+  onLeave: () => void;
   state: GameState;
   viewerId: string;
 }) {
@@ -370,10 +398,16 @@ function WaitingRoom({
             <p className="eyebrow">Room {state.roomCode}</p>
             <h1>CABO</h1>
           </div>
-          <button className="icon-button icon-button--wide" onClick={onCopyCode} type="button">
-            <Share2 size={17} />
-            Code
-          </button>
+          <div className="top-bar__actions">
+            <button className="icon-button icon-button--wide" onClick={onCopyCode} type="button">
+              <Share2 size={17} />
+              Code
+            </button>
+            <button className="icon-button icon-button--wide" onClick={onLeave} type="button">
+              <LogOut size={17} />
+              Leave
+            </button>
+          </div>
         </div>
 
         <button className="room-code-card" onClick={onCopyCode} type="button">

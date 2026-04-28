@@ -102,6 +102,7 @@ export type GameState = {
 export type GameAction =
   | { type: "create-room"; playerId: string; name: string; options: GameOptions }
   | { type: "join-room"; playerId: string; name: string }
+  | { type: "leave-room"; playerId: string }
   | { type: "start-room-game"; playerId: string }
   | { type: "start-game"; playerNames: string[]; options: GameOptions }
   | { type: "preview-highlight"; refs: CardRef[] }

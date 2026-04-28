@@ -551,7 +551,7 @@ button:disabled {
     border-color 160ms ease,
     box-shadow 160ms ease,
     transform 160ms ease;
-  width: 100%;
+  width: var(--card-width, 104px);
 }
 
 .playing-card::after {
@@ -564,30 +564,30 @@ button:disabled {
 }
 
 .playing-card--sm {
-  max-width: 58px;
+  --card-width: 58px;
   min-height: 82px;
 }
 
 .playing-card--md {
-  max-width: 86px;
+  --card-width: 86px;
   min-height: 118px;
 }
 
 .playing-card--lg {
-  max-width: 104px;
+  --card-width: 104px;
   min-height: 142px;
 }
 
 .playing-card--face-up {
   background:
-    radial-gradient(circle at 50% 40%, rgb(240 138 93 / 10%), transparent 38%),
-    linear-gradient(145deg, #fff8ef, #f2e2d2);
-  border-color: #f0d4bd;
-  color: var(--green);
+    radial-gradient(circle at 50% 42%, rgb(249 199 132 / 14%), transparent 42%),
+    linear-gradient(145deg, #251b23, #171219 72%, #100d12);
+  border-color: rgb(249 199 132 / 72%);
+  color: var(--ember-2);
 }
 
 .playing-card--red {
-  color: var(--danger);
+  color: #ff8b76;
 }
 
 .playing-card--clickable:hover,
@@ -619,12 +619,12 @@ button:disabled {
 }
 
 .playing-card__corner b {
-  font-size: clamp(0.92rem, 2vw, 1.18rem);
+  font-size: 0.98rem;
   font-weight: 950;
 }
 
 .playing-card__corner i {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-style: normal;
 }
 
@@ -648,20 +648,22 @@ button:disabled {
   position: absolute;
 }
 
-.playing-card__art > span:not(.playing-card__royal, .playing-card__royal-suit, .playing-card__joker-star, .playing-card__joker-word) {
-  font-size: clamp(1.1rem, 5vw, 1.75rem);
-  opacity: 0.82;
+.playing-card__pip-rank {
+  font-size: 2.75rem;
+  font-weight: 950;
+  line-height: 0.82;
 }
 
-.playing-card__art > span:nth-child(2) {
-  opacity: 0.4;
-  transform: scale(0.82);
+.playing-card__pip-suit {
+  font-size: 2rem;
+  line-height: 1;
+  opacity: 0.72;
 }
 
 .playing-card__royal {
   background: linear-gradient(180deg, currentColor, color-mix(in srgb, currentColor 62%, transparent));
   background-clip: text;
-  font-size: clamp(2.3rem, 8vw, 4rem);
+  font-size: 3.35rem;
   font-weight: 950;
   line-height: 0.85;
   opacity: 0.9;
@@ -669,12 +671,12 @@ button:disabled {
 }
 
 .playing-card__royal-suit {
-  font-size: clamp(1.35rem, 5vw, 2.2rem);
+  font-size: 2rem;
   opacity: 0.72;
 }
 
 .playing-card__joker-star {
-  font-size: clamp(2rem, 7vw, 3.4rem);
+  font-size: 2.85rem;
   line-height: 1;
 }
 
@@ -682,6 +684,52 @@ button:disabled {
   font-size: 0.78rem;
   font-weight: 950;
   text-transform: uppercase;
+}
+
+.playing-card--md .playing-card__corner b {
+  font-size: 0.86rem;
+}
+
+.playing-card--md .playing-card__corner i {
+  font-size: 0.76rem;
+}
+
+.playing-card--md .playing-card__pip-rank {
+  font-size: 2.05rem;
+}
+
+.playing-card--md .playing-card__pip-suit {
+  font-size: 1.5rem;
+}
+
+.playing-card--md .playing-card__royal {
+  font-size: 2.45rem;
+}
+
+.playing-card--md .playing-card__royal-suit {
+  font-size: 1.45rem;
+}
+
+.playing-card--md .playing-card__joker-star {
+  font-size: 2.15rem;
+}
+
+.playing-card--sm .playing-card__corner b {
+  font-size: 0.72rem;
+}
+
+.playing-card--sm .playing-card__corner i {
+  font-size: 0.66rem;
+}
+
+.playing-card--sm .playing-card__pip-rank,
+.playing-card--sm .playing-card__royal {
+  font-size: 1.65rem;
+}
+
+.playing-card--sm .playing-card__pip-suit,
+.playing-card--sm .playing-card__royal-suit {
+  font-size: 1.15rem;
 }
 
 .playing-card__back-line {
